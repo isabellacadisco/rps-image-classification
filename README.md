@@ -8,6 +8,11 @@ CNN for Rock-Paper-Scissors Classification
 
 This repo trains a CNN to classify Rock / Paper / Scissors hand gestures.
 
+Expected dataset layout
+    ./data/raw/RPS/
+    paper/*.jpg
+    rock/*.jpg
+    scissors/*.jpg
 
 ## Quickstart
 
