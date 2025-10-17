@@ -6,6 +6,20 @@
 
 CNN for Rock-Paper-Scissors Classification
 
+This repo trains a CNN to classify Rock / Paper / Scissors hand gestures.
+
+
+## Quickstart
+
+
+```bash
+make venv && source .venv/bin/activate
+make install
+make data RAW=./data/raw/RPS # expects subfolders rock/ paper/ scissors/
+make train # trains and saves ./models/latest.pt
+make eval # evaluates on test set, writes reports/
+make predict # run inference on a folder
+
 ## Project Organization
 
 ```
