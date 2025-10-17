@@ -63,9 +63,28 @@ create_environment:
 
 
 ## Make dataset
-.PHONY: data
-data: requirements
-	$(PYTHON_INTERPRETER) rps_classification/dataset.py
+#.PHONY: data
+#data: requirements
+#	$(PYTHON_INTERPRETER) rps_classification/dataset.py
+
+# Example: make data RAW=./data/raw/RPS
+# Prepares splits under data/processed/{train,val,test}
+data:
+$(PYTHON_INTERPRETER) -m $(PKG).dataset --raw $(RAW) --out ./data/processed --val-ratio 0.15 --test-ratio 0.15
+
+
+train:
+	$(PYTHON_INTERPRETER) -m $(PKG).modeling.train --data ./data/processed --epochs 20 --batch-size 64 --lr 1e-3 --out ./models
+
+
+# Evaluate latest checkpoint on test split
+eval:
+	$(PYTHON_INTERPRETER) -m $(PKG).modeling.train --data ./data/processed --evaluate --ckpt ./models/latest.pt --out ./reports
+
+
+# Run inference on a folder of images, write CSV in reports/
+predict:
+	$(PYTHON_INTERPRETER) -m $(PKG).modeling.predict --images ./data/external/predict --ckpt ./models/latest.pt --out ./reports
 
 
 #################################################################################

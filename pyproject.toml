@@ -18,7 +18,7 @@ classifiers = [
 dependencies = [
     "loguru",
     "mkdocs",
-    "pandas>=2.3.3",
+    #"pandas>=2.3.3",
     "pip",
     "pytest",
     "python-dotenv",
@@ -41,3 +41,6 @@ extend-select = ["I"]  # Add import sorting
 known-first-party = ["rps_classification"]
 force-sort-within-sections = true
 
+[tool.setuptools]
+packages = ["rps_classification", "rps_classification.modeling"]
+include-package-data = true
