@@ -1,32 +1,32 @@
+from dataclasses import dataclass, asdict
 from pathlib import Path
+import yaml
 
-from dotenv import load_dotenv
-from loguru import logger
 
-# Load environment variables from .env file if it exists
-load_dotenv()
+@dataclass
+class TrainConfig:
+    data_dir: str = "./data/processed"
+    out_dir: str = "./models"
+    epochs: int = 20
+    batch_size: int = 64
+    lr: float = 1e-3
+    weight_decay: float = 1e-4
+    num_workers: int = 4
+    img_size: int = 128
+    model: str = "simple_cnn" # switchable in train.py
+    seed: int = 42
+    mixed_precision: bool = True
 
-# Paths
-PROJ_ROOT = Path(__file__).resolve().parents[1]
-logger.info(f"PROJ_ROOT path is: {PROJ_ROOT}")
 
-DATA_DIR = PROJ_ROOT / "data"
-RAW_DATA_DIR = DATA_DIR / "raw"
-INTERIM_DATA_DIR = DATA_DIR / "interim"
-PROCESSED_DATA_DIR = DATA_DIR / "processed"
-EXTERNAL_DATA_DIR = DATA_DIR / "external"
+    def save(self, path: str | Path):
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with p.open("w") as f:
+            yaml.safe_dump(asdict(self), f)
 
-MODELS_DIR = PROJ_ROOT / "models"
 
-REPORTS_DIR = PROJ_ROOT / "reports"
-FIGURES_DIR = REPORTS_DIR / "figures"
-
-# If tqdm is installed, configure loguru with tqdm.write
-# https://github.com/Delgan/loguru/issues/135
-try:
-    from tqdm import tqdm
-
-    logger.remove(0)
-    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True)
-except ModuleNotFoundError:
-    pass
+    @staticmethod
+    def load(path: str | Path):
+        with open(path) as f:
+            data = yaml.safe_load(f)
+        return TrainConfig(**data)
