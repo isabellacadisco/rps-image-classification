@@ -95,3 +95,12 @@ Usa il dataset Rock-Paper-Scissors (Kaggle) copiandolo in:
 data/data_rps/{rock,paper,scissors}
 Le immagini originali sono circa 300×200 (RGB). La pipeline di default preserva l’aspect ratio con Resize(int) e poi fa CenterCrop a 192×192.
 
+
+## how to use uv venv
+uv sync
+source .venv/Scripts/activate
+uv run python -c "import sys; print(sys.executable)"
+
+per disattivarlo:
+deactivate
+rm -rf .venv
