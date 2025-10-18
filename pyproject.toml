@@ -27,6 +27,10 @@ dependencies = [
     "scikit-learn",
     "tqdm",
     "typer",
+    # === PyTorch (CUDA 12.1) ===
+    "torch==2.5.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
+    "torchvision==0.20.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
+    "torchaudio==2.5.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
 ]
 requires-python = ">3.11.0"
 
@@ -46,3 +50,13 @@ force-sort-within-sections = true
 [tool.setuptools]
 packages = ["rps_classification", "rps_classification.modeling"]
 include-package-data = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+torchaudio = [{ index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
