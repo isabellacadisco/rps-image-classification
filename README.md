@@ -16,17 +16,16 @@ Expected dataset layout
 
 uv pip install -r requirements.lock.txt
 
+# RPS Classification (PyTorch) — Rock–Paper–Scissors
 
-## Quickstart
+Convolutional Neural Networks per classificare **rock / paper / scissors** con metodologia rigorosa:
+- **Nessun leakage** del test set
+- **Selezione architettura** con mini **k-fold CV**
+- **Tuning iperparametri** con **k-fold CV** automatizzato
+- **Retrain finale** su train+val, **valutazione una sola volta** su test (blind)
+- Pipeline immagini con **resize lato corto + CenterCrop** (facile da cambiare)
 
-
-```bash
-make venv && source .venv/bin/activate
-make install
-make data RAW=./data/raw/RPS # expects subfolders rock/ paper/ scissors/
-make train # trains and saves ./models/latest.pt
-make eval # evaluates on test set, writes reports/
-make predict # run inference on a folder
+## Struttura progetto
 ```
 ## Project Organization
 
@@ -76,3 +75,23 @@ make predict # run inference on a folder
     │
     └── plots.py                <- Code to create visualizations
 ```
+
+
+## Requisiti & setup ambiente
+```bash
+# Attiva il tuo venv (esempi)
+# Windows (Git Bash):
+source .venv/Scripts/activate
+# Linux/Mac:
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+# (Opzionale GPU) Installa PyTorch con CUDA seguendo le istruzioni ufficiali per la tua GPU/driver.
+```
+
+## Dataset
+
+Usa il dataset Rock-Paper-Scissors (Kaggle) copiandolo in:
+data/data_rps/{rock,paper,scissors}
+Le immagini originali sono circa 300×200 (RGB). La pipeline di default preserva l’aspect ratio con Resize(int) e poi fa CenterCrop a 192×192.
+
