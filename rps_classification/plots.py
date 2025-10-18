@@ -18,6 +18,12 @@ if __name__ == "__main__":
     exp_dir = PATHS.MODELS / "baseline_small"
     if (exp_dir / "training_log.csv").exists():
         plot_history(exp_dir / "training_log.csv", PATHS.FIGURES / "baseline_small")
+
+    # TODO: non farlo così manuale, soluzione sporca 
+    exp_dir = PATHS.MODELS / "best_model_large"
+    if (exp_dir / "training_log.csv").exists():
+        plot_history(exp_dir / "training_log.csv", PATHS.FIGURES / "best_model_large")
+
     final_cm = PATHS.MODELS / "final_best" / "confusion_matrix.json"
     if final_cm.exists():
         plot_cm(final_cm, PATHS.FIGURES / "final_confusion_matrix.png")

@@ -140,7 +140,7 @@ def one_epoch(model, loader, crit, opt=None, device="cpu"):
         n += x.size(0)
     return loss_sum/n, correct/n
 
-def fit_once(model_id, params, train_loader, val_loader, device, epochs=20, patience=5):
+def fit_once(model_id, params, train_loader, val_loader, device, epochs=20, patience=5, dropout=0.3):
     model = build_model(model_id, params["num_classes"], params.get("dropout",0.3)).to(device)
 
     opt = optim.Adam(model.parameters(), lr=params["lr"])
@@ -314,6 +314,7 @@ if __name__ == "__main__":
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--grid", type=str, default="")
     ap.add_argument("--final_eval", type=bool, default=False)
+    ap.add_argument("--dropout", type=float, default=0.3)
     args = ap.parse_args()
 
     cfg = Settings(epochs=args.epochs, batch=args.batch, lr=args.lr)
