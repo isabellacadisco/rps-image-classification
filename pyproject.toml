@@ -23,6 +23,8 @@ dependencies = [
     "pytest",
     "python-dotenv",
     "ruff",
+    "skikit-learn",
+    "torch",
     "tqdm",
     "typer",
 ]
