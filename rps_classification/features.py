@@ -6,8 +6,8 @@ from .config import PATHS, Settings
 
 def build_transforms(img_size: int):
     train_tf = transforms.Compose([
-        transforms.Resize(img_size, img_size),#interpolation=InterpolationMode.BICUBIC, antialias=True),  # lato corto
-        #transforms.CenterCrop(img_size),
+        transforms.Resize(img_size, interpolation=InterpolationMode.BICUBIC, antialias=True),  # lato corto -> img_size
+        transforms.CenterCrop(img_size),
         transforms.RandomHorizontalFlip(0.5),
         transforms.RandomRotation(10, interpolation=InterpolationMode.BILINEAR),
         transforms.ColorJitter(brightness=0.1, contrast=0.1),

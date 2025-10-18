@@ -17,15 +17,47 @@ import pandas as pd, json as js, torch.nn as nn
 class SmallCNN(nn.Module):
     def __init__(self, num_classes=3, dropout=0.2):
         super().__init__()
-        self.net = nn.Sequential(
+        self.features = nn.Sequential(
             nn.Conv2d(3,16,3), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(16,32,3), nn.ReLU(), nn.MaxPool2d(2),
+        )
+        self.pool = nn.AdaptiveAvgPool2d(1)  # GAP
+        self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear(32* ( (192-4)//4 ) * ( (192-4)//4 ), 64), nn.ReLU(),
-            nn.Linear(64, num_classes)
+            nn.Linear(32, 64), nn.ReLU(),
+            nn.Linear(64, num_classes),
         )
-    def forward(self,x): return self.net(x)
+    def forward(self, x):
+        x = self.features(x)
+        x = self.pool(x)
+        return self.classifier(x)
+
+class TinyCNN(nn.Module):
+    def __init__(self, num_classes=3, img_size=192):
+        super().__init__()
+        img_size = int(cfg.img_size)  # Ensure img_size is an integer
+        
+        print("[DEBUG] Initial img_size:", img_size)  # Debugging line
+
+        feature_map_size = img_size // 8  # Calculate the size after 3 MaxPool2d layers
+        if feature_map_size <= 0:
+            raise ValueError(f"Invalid img_size: {img_size}. Ensure img_size is large enough to pass through the network.")
+        print(f"[DEBUG] Feature map size: {feature_map_size}x{feature_map_size}")  # Debugging line
+        self.features = nn.Sequential(
+            nn.Conv2d(3, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2), # 64x64
+            nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),# 32x32
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2) # 16x16
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64 * feature_map_size * feature_map_size, 128), nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(128, num_classes)
+        )
+    def forward(self, x):
+        x = self.features(x)
+        return self.classifier(x)
 
 class MediumCNN(nn.Module):
     def __init__(self, num_classes=3, dropout=0.3):
@@ -35,15 +67,20 @@ class MediumCNN(nn.Module):
             nn.Conv2d(32,32,3), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32,64,3), nn.ReLU(),
             nn.Conv2d(64,64,3), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64,128,3), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64,128,3), nn.ReLU(),
         )
+        self.pool = nn.AdaptiveAvgPool2d(1)  # GAP
         self.classifier = nn.Sequential(
             nn.Flatten(),
             nn.Dropout(dropout),
-            nn.Linear(128*20*20, 128), nn.ReLU(),
-            nn.Linear(128, num_classes)
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, num_classes),
         )
-    def forward(self,x): return self.classifier(self.features(x))
+    def forward(self, x):
+        x = self.features(x)
+        x = self.pool(x)
+        return self.classifier(x)
+
 
 class LargeCNN(nn.Module):
     def __init__(self, num_classes=3, dropout=0.4):
@@ -69,6 +106,9 @@ def build_model(model_id, num_classes, dropout):
     if model_id=="small":  return SmallCNN(num_classes, dropout)
     if model_id=="medium": return MediumCNN(num_classes, dropout)
     if model_id=="large":  return LargeCNN(num_classes, dropout)
+    
+    if model_id=="tiny":  return TinyCNN(num_classes, dropout)
+
     raise ValueError(f"Unknown model_id: {model_id}")
 
 # ----------------- TRAIN / EVAL -----------------
@@ -97,6 +137,7 @@ def one_epoch(model, loader, crit, opt=None, device="cpu"):
 
 def fit_once(model_id, params, train_loader, val_loader, device, epochs=20, patience=5):
     model = build_model(model_id, params["num_classes"], params.get("dropout",0.3)).to(device)
+
     opt = optim.Adam(model.parameters(), lr=params["lr"])
     crit = nn.CrossEntropyLoss()
     best = {"val_acc": -1, "state": None}
@@ -145,6 +186,10 @@ def _make_loader_from_lists(paths, labels, batch, img_size, shuffle, workers, pi
 
 # ----------------- MAIN LOGIC -----------------
 def arch_cv(k, cfg: Settings):
+
+    # sovrascrivo num workers a 0 
+    cfg.num_workers = 0 #TODO: provare altra soluzione con PathDataset
+
     set_seeds(cfg.seed)
     X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
@@ -169,6 +214,10 @@ def arch_cv(k, cfg: Settings):
 
 def grid_cv(k, grid, cfg: Settings):
     set_seeds(cfg.seed)
+
+    # sovrascrivo num workers a 0 #TODO: provare altra soluzione con PathDataset
+    cfg.num_workers = 0
+
     best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
     X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
@@ -255,7 +304,7 @@ def parse_grid(grid_str: str):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", type=str, default="baseline_small")
-    ap.add_argument("--model_id", type=str, choices=["small","medium","large"], default="small")
+    ap.add_argument("--model_id", type=str, choices=["small","medium","large", "tiny"], default="small")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
