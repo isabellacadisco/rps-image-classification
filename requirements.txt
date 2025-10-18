@@ -36,6 +36,7 @@ nest-asyncio==1.6.0
 networkx==3.5
 numpy==2.3.4
 packaging==25.0
+pandas==2.3.3
 parso==0.8.5
 pathspec==0.12.1
 pillow==11.3.0
@@ -50,6 +51,7 @@ pyparsing==3.2.5
 pytest==8.4.2
 python-dateutil==2.9.0.post0
 python-dotenv==1.1.1
+pytz==2025.2
 pyyaml==6.0.3
 pyyaml-env-tag==1.1
 pyzmq==27.1.0
@@ -58,6 +60,7 @@ rich==14.2.0
 ruff==0.14.0
 scikit-learn==1.7.2
 scipy==1.16.2
+seaborn==0.13.2
 setuptools==70.2.0
 shellingham==1.5.4
 six==1.17.0
@@ -72,6 +75,7 @@ tqdm==4.67.1
 traitlets==5.14.3
 typer==0.19.2
 typing-extensions==4.15.0
+tzdata==2025.2
 watchdog==6.0.0
 wcwidth==0.2.14
 win32-setctime==1.2.0

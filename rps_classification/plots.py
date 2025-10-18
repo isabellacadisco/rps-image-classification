@@ -1,36 +1,23 @@
 from pathlib import Path
-import matplotlib.pyplot as plt
-import itertools
-import numpy as np
+import json, pandas as pd, matplotlib.pyplot as plt, seaborn as sns
+from .config import PATHS
 
+def plot_history(csv_log: Path, out_prefix: Path):
+    df = pd.read_csv(csv_log)
+    plt.figure(); plt.plot(df["epoch"], df["train_loss"], label="train"); plt.plot(df["epoch"], df["val_loss"], label="val")
+    plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.grid(); plt.legend(); plt.savefig(out_prefix.with_name(out_prefix.stem+"_loss.png"), dpi=150, bbox_inches="tight"); plt.close()
+    plt.figure(); plt.plot(df["epoch"], df["train_acc"], label="train"); plt.plot(df["epoch"], df["val_acc"], label="val")
+    plt.xlabel("Epoch"); plt.ylabel("Accuracy"); plt.grid(); plt.legend(); plt.savefig(out_prefix.with_name(out_prefix.stem+"_acc.png"), dpi=150, bbox_inches="tight"); plt.close()
 
+def plot_cm(cm_json: Path, out_png: Path):
+    d = json.load(open(cm_json)); cm = d["confusion_matrix"]; classes = d["classes"]
+    plt.figure(figsize=(4,4)); sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=classes, yticklabels=classes)
+    plt.xlabel("Predicted"); plt.ylabel("True"); plt.tight_layout(); plt.savefig(out_png, dpi=150); plt.close()
 
-
-def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix', cmap=None, out_path: str | None = None):
-    if normalize:
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-
-    plt.figure()
-    plt.imshow(cm, interpolation='nearest', cmap=cmap)
-    plt.title(title)
-    plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes, rotation=45)
-    plt.yticks(tick_marks, classes)
-
-
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
-    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
-        plt.text(j, i, format(cm[i, j], fmt),
-            horizontalalignment="center",
-            color="white" if cm[i, j] > thresh else "black")
-
-
-    plt.tight_layout()
-    plt.ylabel('True label')
-    plt.xlabel('Predicted label')
-    if out_path:
-        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(out_path, bbox_inches='tight')
+if __name__ == "__main__":
+    exp_dir = PATHS.MODELS / "baseline_small"
+    if (exp_dir / "training_log.csv").exists():
+        plot_history(exp_dir / "training_log.csv", PATHS.FIGURES / "baseline_small")
+    final_cm = PATHS.MODELS / "final_best" / "confusion_matrix.json"
+    if final_cm.exists():
+        plot_cm(final_cm, PATHS.FIGURES / "final_confusion_matrix.png")

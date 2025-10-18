@@ -1,171 +1,290 @@
-import argparse
+import argparse, json, math, time
 from pathlib import Path
-from typing import Tuple
-
-
+from dataclasses import asdict
+import numpy as np
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.cuda.amp import GradScaler, autocast
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
-import pandas as pd
-from tqdm import tqdm
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import classification_report, confusion_matrix
+from torchvision import datasets
+from ..config import PATHS, Settings
+from ..features import build_transforms, make_loaders
+import pandas as pd, json as js, torch.nn as nn
 
-
-from rps_classification.config import TrainConfig
-from rps_classification.dataset import make_loaders
-
-class SimpleCNN(nn.Module):
-    def __init__(self, num_classes: int = 3):
+# ----------------- MODELS -----------------
+class SmallCNN(nn.Module):
+    def __init__(self, num_classes=3, dropout=0.2):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.AdaptiveAvgPool2d((1, 1))
+            nn.Conv2d(3,16,3), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(16,32,3), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(32* ( (192-4)//4 ) * ( (192-4)//4 ), 64), nn.ReLU(),
+            nn.Linear(64, num_classes)
         )
-        self.fc = nn.Linear(128, num_classes)
+    def forward(self,x): return self.net(x)
 
+class MediumCNN(nn.Module):
+    def __init__(self, num_classes=3, dropout=0.3):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3,32,3), nn.ReLU(),
+            nn.Conv2d(32,32,3), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32,64,3), nn.ReLU(),
+            nn.Conv2d(64,64,3), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64,128,3), nn.ReLU(), nn.MaxPool2d(2),
+        )
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(128*20*20, 128), nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
+    def forward(self,x): return self.classifier(self.features(x))
 
-    def forward(self, x):
-        x = self.net(x)
-        x = torch.flatten(x, 1)
-        return self.fc(x)
-    
-def build_model(name: str, num_classes: int) -> nn.Module:
-    if name == "simple_cnn":
-        return SimpleCNN(num_classes)
-    elif name == "resnet18": #TODO: eliminare!!
-        from torchvision.models import resnet18
-        m = resnet18(weights=None)
-        m.fc = nn.Linear(m.fc.in_features, num_classes)
-        return m
-    else:
-        raise ValueError(f"Unknown model: {name}")
-    
-def _evaluate(model: nn.Module, loader, device) -> Tuple[float, float]:
-    model.eval()
-    all_logits, all_y = [], []
+class LargeCNN(nn.Module):
+    def __init__(self, num_classes=3, dropout=0.4):
+        super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(3,32,3,padding=1), nn.ReLU(), nn.BatchNorm2d(32),
+            nn.Conv2d(32,32,3,padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32,64,3,padding=1), nn.ReLU(), nn.BatchNorm2d(64),
+            nn.Conv2d(64,64,3,padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64,128,3,padding=1), nn.ReLU(), nn.BatchNorm2d(128),
+            nn.MaxPool2d(2),
+        )
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Dropout(dropout),
+            nn.Linear(128, 128), nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
+    def forward(self,x): return self.classifier(self.pool(self.features(x)))
+
+def build_model(model_id, num_classes, dropout):
+    if model_id=="small":  return SmallCNN(num_classes, dropout)
+    if model_id=="medium": return MediumCNN(num_classes, dropout)
+    if model_id=="large":  return LargeCNN(num_classes, dropout)
+    raise ValueError(f"Unknown model_id: {model_id}")
+
+# ----------------- TRAIN / EVAL -----------------
+def set_seeds(seed):
+    import random, numpy as np, torch
+    random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+def one_epoch(model, loader, crit, opt=None, device="cpu"):
+    is_train = opt is not None
+    model.train(is_train)
+    loss_sum, correct, n = 0.0, 0, 0
+    for x,y in loader:
+        x,y = x.to(device), y.to(device)
+        if is_train: opt.zero_grad()
+        logits = model(x)
+        loss = crit(logits, y)
+        if is_train:
+            loss.backward()
+            opt.step()
+        loss_sum += loss.item()*x.size(0)
+        correct += (logits.argmax(1)==y).sum().item()
+        n += x.size(0)
+    return loss_sum/n, correct/n
+
+def fit_once(model_id, params, train_loader, val_loader, device, epochs=20, patience=5):
+    model = build_model(model_id, params["num_classes"], params.get("dropout",0.3)).to(device)
+    opt = optim.Adam(model.parameters(), lr=params["lr"])
+    crit = nn.CrossEntropyLoss()
+    best = {"val_acc": -1, "state": None}
+    patience_left = patience
+    history = []
+    for ep in range(1, epochs+1):
+        tr_loss, tr_acc = one_epoch(model, train_loader, crit, opt, device)
+        va_loss, va_acc = one_epoch(model, val_loader, crit, None, device)
+        history.append({"epoch":ep, "train_loss":tr_loss, "train_acc":tr_acc, "val_loss":va_loss, "val_acc":va_acc})
+        if va_acc > best["val_acc"]:
+            best = {"val_acc": va_acc, "state": model.state_dict()}
+            patience_left = patience
+        else:
+            patience_left -= 1
+            if patience_left == 0: break
+    model.load_state_dict(best["state"])
+    return model, history, best["val_acc"]
+
+# ----------------- CV HELPERS -----------------
+def _list_paths_labels(dirpath: Path):
+    ds = datasets.ImageFolder(dirpath)
+    paths = [p[0] for p in ds.samples]
+    labels = [int(p[1]) for p in ds.samples]
+    classes = ds.classes
+    return np.array(paths), np.array(labels), classes
+
+def _make_loader_from_lists(paths, labels, batch, img_size, shuffle, workers, pin):
+    # usa le stesse trasformazioni di val/test (augment SOLO nel fold train via flag)
+    from PIL import Image
+    from torch.utils.data import Dataset
+    from torchvision import transforms
+    from torchvision.transforms import InterpolationMode
+    train_tf, test_tf = build_transforms(img_size)
+    tfm = train_tf if shuffle else test_tf
+
+    class ListDataset(Dataset):
+        def __len__(self): return len(paths)
+        def __getitem__(self, i):
+            img = Image.open(paths[i]).convert("RGB")
+            x = tfm(img)
+            y = int(labels[i])
+            return x,y
+    return torch.utils.data.DataLoader(ListDataset(), batch_size=batch, shuffle=shuffle,
+                                       num_workers=workers, pin_memory=pin,
+                                       persistent_workers=(workers>0))
+
+# ----------------- MAIN LOGIC -----------------
+def arch_cv(k, cfg: Settings):
+    set_seeds(cfg.seed)
+    X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
+    X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
+    X = np.concatenate([X_tr, X_va]); y = np.concatenate([y_tr, y_va])
+
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=cfg.seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    results = []
+    for model_id in ["small","medium","large"]:
+        fold_acc = []
+        for tr_idx, va_idx in skf.split(X,y):
+            tr_loader = _make_loader_from_lists(X[tr_idx], y[tr_idx], cfg.batch, cfg.img_size, True, cfg.num_workers, cfg.pin_memory)
+            va_loader = _make_loader_from_lists(X[va_idx], y[va_idx], cfg.batch, cfg.img_size, False, cfg.num_workers, cfg.pin_memory)
+            model, hist, acc = fit_once(model_id, {"num_classes":3,"lr":cfg.lr}, tr_loader, va_loader, device, epochs=min(cfg.epochs,8), patience=3)
+            fold_acc.append(acc)
+        results.append({"model_id": model_id, "mean_val_acc": float(np.mean(fold_acc)), "folds": [float(a) for a in fold_acc]})
+        print(f"[ARCH CV] {model_id}: mean={np.mean(fold_acc):.4f}")
+    best = max(results, key=lambda r: r["mean_val_acc"])
+    json.dump(results, open(PATHS.MODELS/"arch_cv_results.json","w"), indent=2)
+    json.dump(best, open(PATHS.MODELS/"best_arch.json","w"), indent=2)
+    print("[BEST ARCH]", best)
+
+def grid_cv(k, grid, cfg: Settings):
+    set_seeds(cfg.seed)
+    best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
+    X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
+    X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
+    X = np.concatenate([X_tr, X_va]); y = np.concatenate([y_tr, y_va])
+
+    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=cfg.seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    results = []
+    for lr in grid["lr"]:
+        for batch in grid["batch"]:
+            for dropout in grid["dropout"]:
+                for epochs in grid.get("epochs",[cfg.epochs]):
+                    fold_acc = []
+                    for tr_idx, va_idx in skf.split(X,y):
+                        tr_loader = _make_loader_from_lists(X[tr_idx], y[tr_idx], batch, cfg.img_size, True, cfg.num_workers, cfg.pin_memory)
+                        va_loader = _make_loader_from_lists(X[va_idx], y[va_idx], batch, cfg.img_size, False, cfg.num_workers, cfg.pin_memory)
+                        params = {"num_classes":3, "lr":lr, "dropout":dropout}
+                        _, _, acc = fit_once(best_arch, params, tr_loader, va_loader, device, epochs=epochs, patience=cfg.patience)
+                        fold_acc.append(acc)
+                    results.append({"arch":best_arch,"params":{"lr":lr,"batch":batch,"dropout":dropout,"epochs":epochs},"mean_val_acc":float(np.mean(fold_acc))})
+                    print(f"[GRID] {best_arch} {results[-1]['params']} -> {results[-1]['mean_val_acc']:.4f}")
+    best = max(results, key=lambda r: r["mean_val_acc"])
+    json.dump(results, open(PATHS.MODELS/"grid_cv_results.json","w"), indent=2)
+    json.dump(best, open(PATHS.MODELS/"best_params.json","w"), indent=2)
+    print("[BEST PARAMS]", best)
+
+def retrain_and_eval(cfg: Settings, exp_name="final"):
+    set_seeds(cfg.seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
+    best_params = json.load(open(PATHS.MODELS/"best_params.json"))["params"]
+    # loader standard (augment su train)
+    train_loader, val_loader, test_loader = make_loaders(cfg)
+    # unisci train+val
+    full_train = torch.utils.data.ConcatDataset([train_loader.dataset, val_loader.dataset])
+    full_loader = torch.utils.data.DataLoader(full_train, batch_size=best_params["batch"], shuffle=True,
+                                              num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
+                                              persistent_workers=(cfg.num_workers>0))
+    model = build_model(best_arch, 3, best_params.get("dropout",0.3)).to(device)
+    opt = optim.Adam(model.parameters(), lr=best_params["lr"])
+    crit = nn.CrossEntropyLoss()
+    # simple early-stopping on train loss
+    best_loss, patience_left = float("inf"), cfg.patience
+    for ep in range(best_params.get("epochs", cfg.epochs)):
+        tr_loss, tr_acc = one_epoch(model, full_loader, crit, opt, device)
+        if tr_loss < best_loss - 1e-4:
+            best_loss, best_state = tr_loss, model.state_dict()
+            patience_left = cfg.patience
+        else:
+            patience_left -= 1
+            if patience_left == 0: break
+    model.load_state_dict(best_state)
+    # test eval
+    test_loss, test_acc = one_epoch(model, test_loader, crit, None, device)
+    # per report: classification report & CM
+    y_true, y_pred = [], []
+    classes = [l.strip() for l in (PATHS.DATA_PROC/"classes.txt").read_text().splitlines()]
     with torch.no_grad():
-        for x, y in loader:
-            x, y = x.to(device), y.to(device)
-            logits = model(x)
-            all_logits.append(logits.cpu())
-            all_y.append(y.cpu())
-    logits = torch.cat(all_logits)
-    y_true = torch.cat(all_y)
-    preds = logits.argmax(1)
-    acc = accuracy_score(y_true, preds)
-    loss = nn.CrossEntropyLoss()(logits, y_true).item()
-    return loss, acc
-
-def train(cfg: TrainConfig, evaluate_only: bool = False, ckpt_path: str | None = None, report_dir: str | None = None):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-    train_dl, val_dl, test_dl = make_loaders(Path(cfg.data_dir), cfg.batch_size, cfg.num_workers, cfg.img_size)
-    num_classes = len(train_dl.dataset.classes)
-    model = build_model(cfg.model, num_classes).to(device)
-
-
-    if evaluate_only:
-        assert ckpt_path is not None, "--evaluate requires --ckpt"
-        model.load_state_dict(torch.load(ckpt_path, map_location=device))
-        loss, acc = _evaluate(model, test_dl, device)
-        print(f"Test loss: {loss:.4f} | Test acc: {acc:.4f}")
-        Path(report_dir or "./reports").mkdir(parents=True, exist_ok=True)
-        with open(Path(report_dir or "./reports")/"test_metrics.txt", "w") as f:
-            f.write(f"loss={loss}\nacc={acc}\n")
-        return
-    
-    optimizer = optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
-    criterion = nn.CrossEntropyLoss()
-    scaler = GradScaler(enabled=cfg.mixed_precision)
-
-    best_val_acc = 0.0
-    out_dir = Path(cfg.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    (Path("./reports")/"figures").mkdir(parents=True, exist_ok=True)
-
-
-    for epoch in range(1, cfg.epochs + 1):
-        model.train()
-        pbar = tqdm(train_dl, desc=f"Epoch {epoch}/{cfg.epochs}")
-        for x, y in pbar:
-            x, y = x.to(device), y.to(device)
-            optimizer.zero_grad()
-            with autocast(enabled=cfg.mixed_precision):
-                logits = model(x)
-                loss = criterion(logits, y)
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-            pbar.set_postfix(loss=loss.item())
-
-
-        val_loss, val_acc = _evaluate(model, val_dl, device)
-        print(f"Val loss: {val_loss:.4f} | Val acc: {val_acc:.4f}")
-
-
-        # checkpointing
-        torch.save(model.state_dict(), out_dir / "latest.pt")
-        if val_acc >= best_val_acc:
-            best_val_acc = val_acc
-            torch.save(model.state_dict(), out_dir / "best.pt")
-
-    # final test
-    test_loss, test_acc = _evaluate(model, test_dl, device)
-    print(f"Test loss: {test_loss:.4f} | Test acc: {test_acc:.4f}")
-
-
-    # save classification report
-    model.eval()
-    all_preds, all_true = [], []
-    with torch.no_grad():
-        for x, y in test_dl:
+        for x,y in test_loader:
             x = x.to(device)
             logits = model(x)
-            all_preds.append(logits.argmax(1).cpu())
-            all_true.append(y)
-    y_pred = torch.cat(all_preds)
-    y_true = torch.cat(all_true)
+            y_pred.extend(logits.argmax(1).cpu().tolist())
+            y_true.extend(y.tolist())
+    rep = classification_report(y_true, y_pred, target_names=classes, output_dict=True)
+    cm  = confusion_matrix(y_true, y_pred).tolist()
 
+    exp = PATHS.MODELS / exp_name
+    exp.mkdir(exist_ok=True, parents=True)
+    torch.save(model.state_dict(), exp/"final.pt")
+    json.dump({"test_loss":test_loss, "test_acc":test_acc}, open(exp/"final_test_metrics.json","w"), indent=2)
+    json.dump(rep, open(exp/"classification_report.json","w"), indent=2)
+    json.dump({"confusion_matrix":cm, "classes":classes}, open(exp/"confusion_matrix.json","w"), indent=2)
+    print("[FINAL TEST]", {"loss":test_loss, "acc":test_acc})
 
-    report = classification_report(y_true, y_pred, target_names=test_dl.dataset.classes, output_dict=True)
-    df = pd.DataFrame(report).T
-    df.to_csv(Path("./reports")/"classification_report.csv")
-
+def parse_grid(grid_str: str):
+    # es: "lr=1e-3,3e-4 batch=32,64 dropout=0.2,0.4 epochs=12"
+    out = {}
+    for token in grid_str.split():
+        k, v = token.split("=")
+        vals = v.split(",")
+        out[k] = [float(x) if any(c in x for c in ".e") else int(x) for x in vals]
+    return out
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--data", type=str, default="./data/processed")
-    p.add_argument("--out", type=str, default="./models")
-    p.add_argument("--epochs", type=int, default=20)
-    p.add_argument("--batch-size", type=int, default=64)
-    p.add_argument("--lr", type=float, default=1e-3)
-    p.add_argument("--weight-decay", type=float, default=1e-4)
-    p.add_argument("--num-workers", type=int, default=4)
-    p.add_argument("--img-size", type=int, default=128)
-    p.add_argument("--model", type=str, default="simple_cnn", choices=["simple_cnn", "resnet18"])
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--no-amp", action="store_true", help="Disable mixed precision")
-    p.add_argument("--evaluate", action="store_true")
-    p.add_argument("--ckpt", type=str, default=None)
-    p.add_argument("--report-dir", type=str, default="./reports")
-    args = p.parse_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--exp", type=str, default="baseline_small")
+    ap.add_argument("--model_id", type=str, choices=["small","medium","large"], default="small")
+    ap.add_argument("--epochs", type=int, default=20)
+    ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--do_arch_cv", type=bool, default=False)
+    ap.add_argument("--do_grid_cv", type=bool, default=False)
+    ap.add_argument("--k", type=int, default=5)
+    ap.add_argument("--grid", type=str, default="")
+    ap.add_argument("--final_eval", type=bool, default=False)
+    args = ap.parse_args()
 
-
-    cfg = TrainConfig(
-        data_dir=args.data,
-        out_dir=args.out,
-        epochs=args.epochs,
-        batch_size=args.batch_size,
-        lr=args.lr,
-        weight_decay=args.weight_decay,
-        num_workers=args.num_workers,
-        img_size=args.img_size,
-        model=args.model,
-        seed=args.seed,
-        mixed_precision=not args.no_amp,
-    )
-train(cfg, evaluate_only=args.evaluate, ckpt_path=args.ckpt, report_dir=args.report_dir)
+    cfg = Settings(epochs=args.epochs, batch=args.batch, lr=args.lr)
+    if args.do_arch_cv:
+        arch_cv(args.k, cfg)
+    elif args.do_grid_cv:
+        grid = parse_grid(args.grid) if args.grid else {"lr":[1e-3,3e-4], "batch":[32,64], "dropout":[0.2,0.4], "epochs":[12]}
+        grid_cv(args.k, grid, cfg)
+    elif args.final_eval:
+        retrain_and_eval(cfg, exp_name="final_best")
+    else:
+        # semplice train su train/val e test a fine (per baseline rapida)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        train_loader, val_loader, test_loader = make_loaders(cfg)
+        model, hist, _ = fit_once(args.model_id, {"num_classes":3,"lr":cfg.lr}, train_loader, val_loader, device, epochs=cfg.epochs, patience=cfg.patience)
+        # salva log + test
+        out = PATHS.MODELS / args.exp
+        out.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), out/"model.pt")
+        
+        pd.DataFrame(hist).to_csv(out/"training_log.csv", index=False)
+        loss, acc = one_epoch(model, test_loader, nn.CrossEntropyLoss(), None, device)
+        js.dump({"test_loss":loss, "test_acc":acc}, open(out/"test_metrics.json","w"), indent=2)
+        print("[BASELINE TEST]", {"loss":loss, "acc":acc})

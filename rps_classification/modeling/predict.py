@@ -1,65 +1,38 @@
-import argparse
+import argparse, json
 from pathlib import Path
 import torch
 from PIL import Image
 from torchvision import transforms
-import pandas as pd
+from torchvision.transforms import InterpolationMode
+from ..config import PATHS, Settings
+from .train import build_model
 
-
-from rps_classification.modeling.train import build_model
-
-
-
-
-def predict_folder(images_dir: Path, ckpt: Path, out_csv: Path, img_size: int = 128, class_names=None):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-    tf = transforms.Compose([
-    transforms.Resize((img_size, img_size)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+def predict(imgs, model_path, model_id="medium", img_size=192):
+    classes = [l.strip() for l in (PATHS.DATA_PROC/"classes.txt").read_text().splitlines()]
+    model = build_model(model_id, num_classes=len(classes), dropout=0.0)
+    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.eval()
+    tfm = transforms.Compose([
+        transforms.Resize(img_size, interpolation=InterpolationMode.BICUBIC, antialias=True),
+        transforms.CenterCrop(img_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5,0.5,0.5],[0.5,0.5,0.5]),
     ])
-
-
-    files = sorted([p for p in images_dir.iterdir() if p.suffix.lower() in {".jpg", ".png", ".jpeg"}])
-    if class_names is None:
-        class_names = ["paper", "rock", "scissors"]  # adjust if needed
-
-    model = build_model("simple_cnn", num_classes=len(class_names))
-    model.load_state_dict(torch.load(ckpt, map_location=device))
-    model.eval().to(device)
-
-
-    rows = []
+    out = []
     with torch.no_grad():
-        for fp in files:
-            img = Image.open(fp).convert("RGB")
-            x = tf(img).unsqueeze(0).to(device)
-            logits = model(x)
-            probs = torch.softmax(logits, dim=1)[0].cpu().tolist()
-            pred_idx = int(torch.argmax(logits, dim=1))
-            rows.append({
-                "file": fp.name,
-                "pred": class_names[pred_idx],
-                **{f"p_{name}": probs[i] for i, name in enumerate(class_names)}
-            })
-
-
-    out_csv.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(rows).to_csv(out_csv, index=False)
-    print(f"Predictions saved to {out_csv}")
-
-
-
+        for p in imgs:
+            x = tfm(Image.open(p).convert("RGB")).unsqueeze(0)
+            y = model(x).softmax(1)[0]
+            conf, idx = float(y.max().item()), int(y.argmax().item())
+            out.append({"path": str(p), "pred": classes[idx], "conf": conf})
+    return out
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--images", type=str, required=True)
-    p.add_argument("--ckpt", type=str, required=True)
-    p.add_argument("--out", type=str, default="./reports/predictions.csv")
-    p.add_argument("--img-size", type=int, default=128)
-    args = p.parse_args()
-
-
-    predict_folder(Path(args.images), Path(args.ckpt), Path(args.out), img_size=args.img_size)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model_path", type=str, required=True)
+    ap.add_argument("--model_id", type=str, default="medium")
+    ap.add_argument("--imgs", type=str, nargs="+", required=True)
+    args = ap.parse_args()
+    res = predict([Path(p) for p in args.imgs], Path(args.model_path), args.model_id)
+    for r in res:
+        print(f"{r['path']} -> {r['pred']} ({r['conf']:.3f})")

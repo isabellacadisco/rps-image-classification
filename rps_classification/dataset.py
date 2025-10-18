@@ -1,84 +1,54 @@
-import argparse
+import argparse, csv, shutil, uuid
 from pathlib import Path
-from typing import Tuple
-import shutil
-import random
+from sklearn.model_selection import train_test_split
+from .config import PATHS, Settings
 
+IMG_EXTS = {".png", ".jpg", ".jpeg"}
 
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader
+def _iter_imgs(root: Path):
+    return [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in IMG_EXTS]
 
+def make_split(src: Path, out: Path, val: float, test: float, seed: int):
+    # reset processed
+    for split in ["train","val","test"]:
+        d = out / split
+        if d.exists(): shutil.rmtree(d)
+        d.mkdir(parents=True, exist_ok=True)
 
-# canonical transforms shared by train/eval
+    classes = sorted([d.name for d in src.iterdir() if d.is_dir()])
+    (out / "classes.txt").write_text("\n".join(classes), encoding="utf-8")
 
-def make_transforms(img_size: int) -> Tuple[transforms.Compose, transforms.Compose]:
-    train_tf = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ])
-    eval_tf = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-    ])
-    return train_tf, eval_tf
-
-def _copy_subset(filepaths, dst_dir: Path):
-    for src in filepaths:
-        rel = Path(src).parent.name # class name
-        out_dir = dst_dir / rel
-        out_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, out_dir / Path(src).name)
-
-def prepare_splits(raw_dir: Path, out_dir: Path, val_ratio: float, test_ratio: float, seed: int = 42):
-    assert raw_dir.exists(), f"Raw dir not found: {raw_dir}"
-    classes = [d.name for d in raw_dir.iterdir() if d.is_dir()]
-    rng = random.Random(seed)
-
-    (out_dir / "train").mkdir(parents=True, exist_ok=True)
-    (out_dir / "val").mkdir(parents=True, exist_ok=True)
-    (out_dir / "test").mkdir(parents=True, exist_ok=True)
-
+    rows = []
     for cls in classes:
-        files = list((raw_dir / cls).glob("*.jpg")) + list((raw_dir / cls).glob("*.png"))
-        rng.shuffle(files)
-        n = len(files)
-        n_test = int(n * test_ratio)
-        n_val = int(n * val_ratio)
-        test_files = files[:n_test]
-        val_files = files[n_test:n_test + n_val]
-        train_files = files[n_test + n_val:]
-        _copy_subset(train_files, out_dir / "train" / cls)
-        _copy_subset(val_files, out_dir / "val" / cls)
-        _copy_subset(test_files, out_dir / "test" / cls)
+        imgs = sorted(_iter_imgs(src / cls))
+        train_imgs, temp = train_test_split(imgs, test_size=val+test, random_state=seed, shuffle=True)
+        rel = test / (val + test)
+        val_imgs, test_imgs = train_test_split(temp, test_size=rel, random_state=seed, shuffle=True)
 
+        for split, arr in [("train", train_imgs), ("val", val_imgs), ("test", test_imgs)]:
+            (out / split / cls).mkdir(parents=True, exist_ok=True)
+            for p in arr:
+                dst = out / split / cls / p.name
+                if dst.exists():  # evita overwrite silenziosi
+                    stem, suf = dst.stem, dst.suffix
+                    dst = dst.with_name(f"{stem}__{uuid.uuid4().hex[:8]}{suf}")
+                shutil.copy2(p, dst)
+                rows.append((split, str(dst.relative_to(PATHS.ROOT)), cls))
 
-def make_loaders(processed_dir: Path, batch_size: int, num_workers: int, img_size: int):
-    train_tf, eval_tf = make_transforms(img_size)
-    train_ds = datasets.ImageFolder(processed_dir / "train", transform=train_tf)
-    val_ds = datasets.ImageFolder(processed_dir / "val", transform=eval_tf)
-    test_ds = datasets.ImageFolder(processed_dir / "test", transform=eval_tf)
-
-
-    train_dl = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
-    val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
-    test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
-    return train_dl, val_dl, test_dl
-
-
+    PATHS.REFS.mkdir(parents=True, exist_ok=True)
+    for split in ["train","val","test","all"]:
+        with open(PATHS.REFS / f"manifest_{split}.csv", "w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f); w.writerow(["split","path","label"])
+            for s, p, l in rows:
+                if split == "all" or s == split: w.writerow([s,p,l])
 
 if __name__ == "__main__":
-    p = argparse.ArgumentParser()
-    p.add_argument("--raw", type=str, required=True, help="Path to raw dataset folder with class subdirs")
-    p.add_argument("--out", type=str, required=True, help="Output dir for processed splits")
-    p.add_argument("--val-ratio", type=float, default=0.15)
-    p.add_argument("--test-ratio", type=float, default=0.15)
-    p.add_argument("--seed", type=int, default=42)
-    args = p.parse_args()
-
-
-    prepare_splits(Path(args.raw), Path(args.out), args.val_ratio, args.test_ratio, seed=args.seed)
-    print(f"Splits written under {args.out}")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--src", type=str, default=str(PATHS.DATA_RAW))
+    ap.add_argument("--out", type=str, default=str(PATHS.DATA_PROC))
+    ap.add_argument("--val", type=float, default=0.15)
+    ap.add_argument("--test", type=float, default=0.15)
+    ap.add_argument("--seed", type=int, default=42)
+    args = ap.parse_args()
+    make_split(Path(args.src), Path(args.out), args.val, args.test, args.seed)
+    print("Split creato in", args.out)
