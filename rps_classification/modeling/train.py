@@ -13,6 +13,12 @@ from ..config import PATHS, Settings
 from ..features import build_transforms, make_loaders
 import pandas as pd, json as js, torch.nn as nn
 
+import random, numpy as np, torch
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+from torchvision.transforms import InterpolationMode
+
 # ----------------- MODELS -----------------
 class SmallCNN(nn.Module):
     def __init__(self, num_classes=3, dropout=0.2):
@@ -113,7 +119,6 @@ def build_model(model_id, num_classes, dropout):
 
 # ----------------- TRAIN / EVAL -----------------
 def set_seeds(seed):
-    import random, numpy as np, torch
     random.seed(seed); np.random.seed(seed); torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
@@ -166,10 +171,6 @@ def _list_paths_labels(dirpath: Path):
 
 def _make_loader_from_lists(paths, labels, batch, img_size, shuffle, workers, pin):
     # usa le stesse trasformazioni di val/test (augment SOLO nel fold train via flag)
-    from PIL import Image
-    from torch.utils.data import Dataset
-    from torchvision import transforms
-    from torchvision.transforms import InterpolationMode
     train_tf, test_tf = build_transforms(img_size)
     tfm = train_tf if shuffle else test_tf
 
