@@ -24,7 +24,7 @@ make data RAW=./data/raw/RPS # expects subfolders rock/ paper/ scissors/
 make train # trains and saves ./models/latest.pt
 make eval # evaluates on test set, writes reports/
 make predict # run inference on a folder
-
+```
 ## Project Organization
 
 ```
@@ -32,8 +32,6 @@ make predict # run inference on a folder
 ├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
 ├── README.md          <- The top-level README for developers using this project.
 ├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
 │   ├── processed      <- The final, canonical data sets for modeling.
 │   └── raw            <- The original, immutable data dump.
 │
@@ -75,6 +73,3 @@ make predict # run inference on a folder
     │
     └── plots.py                <- Code to create visualizations
 ```
-
---------
-
