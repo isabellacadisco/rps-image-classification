@@ -14,6 +14,9 @@ Expected dataset layout
     rock/*.jpg
     scissors/*.jpg
 
+uv pip install -r requirements.lock.txt
+
+
 ## Quickstart
 
 

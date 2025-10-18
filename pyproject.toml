@@ -16,6 +16,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License"
 ]
 dependencies = [
+    "ipykernel>=7.0.1",
     "loguru",
     "mkdocs",
     #"pandas>=2.3.3",
@@ -23,8 +24,7 @@ dependencies = [
     "pytest",
     "python-dotenv",
     "ruff",
-    "skikit-learn",
-    "torch",
+    "scikit-learn",
     "tqdm",
     "typer",
 ]
