@@ -1,0 +1,10 @@
+{
+  "arch": "large",
+  "params": {
+    "lr": 0.001,
+    "batch": 64,
+    "dropout": 0.3,
+    "epochs": 2
+  },
+  "mean_val_acc": 0.6353357176753822
+}
