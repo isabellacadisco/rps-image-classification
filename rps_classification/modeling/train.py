@@ -221,9 +221,9 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
                     results.append({"arch":best_arch,"params":{"lr":lr,"batch":batch,"dropout":dropout,"epochs":epochs},"mean_val_acc":float(np.mean(fold_acc)), "std_val_acc":float(np.std(fold_acc)), "folds": [float(a) for a in fold_acc]})
                     print(f"[GRID] {best_arch} {results[-1]['params']} -> {results[-1]['mean_val_acc']:.4f}")
     best = max(results, key=lambda r: r["mean_val_acc"])
-    json.dump(results, open(PATHS.MODELS/"grid_cv_results.json","w"), indent=2)
+    json.dump(results, open(PATHS.MODELS/f"grid_cv_results_{arch}.json","w"), indent=2)
     json.dump(best, open(PATHS.MODELS/f"best_params_{arch}.json","w"), indent=2)
-    print("[BEST PARAMS]", best)
+    print(f"[BEST PARAMS] {arch}", best)
 
 def retrain_and_eval(cfg: Settings, exp_name="final", arch=None):
     set_seeds(cfg.seed)
