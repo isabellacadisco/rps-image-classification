@@ -15,14 +15,16 @@ def plot_cm(cm_json: Path, out_png: Path):
     plt.xlabel("Predicted"); plt.ylabel("True"); plt.tight_layout(); plt.savefig(out_png, dpi=150); plt.close()
 
 if __name__ == "__main__":
-    exp_dir = PATHS.MODELS / "baseline_small"
-    if (exp_dir / "training_log.csv").exists():
-        plot_history(exp_dir / "training_log.csv", PATHS.FIGURES / "baseline_small")
 
-    # TODO: non farlo così manuale, soluzione sporca 
-    exp_dir = PATHS.MODELS / "best_model_large"
-    if (exp_dir / "training_log.csv").exists():
-        plot_history(exp_dir / "training_log.csv", PATHS.FIGURES / "best_model_large")
+    models_dir = PATHS.MODELS
+    
+    # per tutte le sottocartelle in models/ plot_history
+    for exp_dir in models_dir.iterdir():
+        if exp_dir.is_dir():
+            csv_path = exp_dir / "training_log.csv"
+            if csv_path.exists():
+                print(f"Plotting training log for: {exp_dir.name}")
+                plot_history(csv_path, PATHS.FIGURES / exp_dir.name)
 
     final_cm = PATHS.MODELS / "final_best" / "confusion_matrix.json"
     if final_cm.exists():
