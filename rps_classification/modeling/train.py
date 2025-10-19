@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, confusion_matrix
 from torchvision import datasets
 from ..config import PATHS, Settings
-from ..features import build_transforms, make_loaders
+from ..features import build_transforms, make_loaders, ListDataset
 import pandas as pd, json as js, torch.nn as nn
 
 import random, numpy as np, torch
@@ -174,14 +174,9 @@ def _make_loader_from_lists(paths, labels, batch, img_size, shuffle, workers, pi
     train_tf, test_tf = build_transforms(img_size)
     tfm = train_tf if shuffle else test_tf
 
-    class ListDataset(Dataset):
-        def __len__(self): return len(paths)
-        def __getitem__(self, i):
-            img = Image.open(paths[i]).convert("RGB")
-            x = tfm(img)
-            y = int(labels[i])
-            return x,y
-    return torch.utils.data.DataLoader(ListDataset(), batch_size=batch, shuffle=shuffle,
+    lst_ds = ListDataset(paths, labels, tfm)
+
+    return torch.utils.data.DataLoader(lst_ds, batch_size=batch, shuffle=shuffle,
                                        num_workers=workers, pin_memory=pin,
                                        persistent_workers=(workers>0))
 
@@ -189,7 +184,8 @@ def _make_loader_from_lists(paths, labels, batch, img_size, shuffle, workers, pi
 def arch_cv(k, cfg: Settings):
 
     # sovrascrivo num workers a 0 
-    cfg.num_workers = 0 #TODO: provare altra soluzione con PathDataset
+    #cfg.num_workers = 0 #TODO: sistemato ListDataset, se non si risolve rimettere a zero 
+    # oppure provare altra soluzione con PathDataset
 
     set_seeds(cfg.seed)
     X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
@@ -218,8 +214,9 @@ def arch_cv(k, cfg: Settings):
 def grid_cv(k, grid, cfg: Settings, arch=None):
     set_seeds(cfg.seed)
 
-    # sovrascrivo num workers a 0 #TODO: provare altra soluzione con PathDataset
-    cfg.num_workers = 0
+    # sovrascrivo num workers a 0 
+    #cfg.num_workers = 0 #TODO: sistemato ListDataset, se non si risolve rimettere a zero 
+    # oppure provare altra soluzione con PathDataset
 
     # best_arch è il model_id della migliore architettura trovata in arch_cv
     # siccome la migliore architettura potrebbe essere "large" che richiede più memoria,

@@ -1,8 +1,9 @@
 from pathlib import Path
 from torchvision import datasets, transforms
 from torchvision.transforms import InterpolationMode
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from .config import PATHS, Settings
+from PIL import Image
 
 def build_transforms(img_size: int):
     train_tf = transforms.Compose([
@@ -33,3 +34,20 @@ def make_loaders(cfg: Settings, processed_dir: Path = PATHS.DATA_PROC):
                           num_workers=cfg.num_workers, pin_memory=cfg.pin_memory,
                           persistent_workers=(cfg.num_workers>0))
     return mkloader(train_ds, True), mkloader(val_ds, False), mkloader(test_ds, False)
+
+
+class ListDataset(Dataset):
+    def __init__(self, paths, labels, transform):
+        self.paths = list(paths)
+        self.labels = list(map(int, labels))
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, i):
+        with Image.open(self.paths[i]) as img:
+            img = img.convert("RGB")
+            x = self.transform(img)
+        y = self.labels[i]
+        return x, y
