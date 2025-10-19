@@ -206,7 +206,7 @@ def arch_cv(k, cfg: Settings):
             va_loader = _make_loader_from_lists(X[va_idx], y[va_idx], cfg.batch, cfg.img_size, False, cfg.num_workers, cfg.pin_memory)
             model, hist, acc = fit_once(model_id, {"num_classes":3,"lr":cfg.lr}, tr_loader, va_loader, device, epochs=min(cfg.epochs,8), patience=3)
             fold_acc.append(acc)
-        results.append({"model_id": model_id, "mean_val_acc": float(np.mean(fold_acc)), "folds": [float(a) for a in fold_acc]})
+        results.append({"model_id": model_id, "mean_val_acc": float(np.mean(fold_acc)), "std_val_acc":float(np.std(fold_acc)), "folds": [float(a) for a in fold_acc]})
         print(f"[ARCH CV] {model_id}: mean={np.mean(fold_acc):.4f}")
     best = max(results, key=lambda r: r["mean_val_acc"])
     json.dump(results, open(PATHS.MODELS/"arch_cv_results.json","w"), indent=2)
@@ -245,7 +245,7 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
                         params = {"num_classes":3, "lr":lr, "dropout":dropout}
                         _, _, acc = fit_once(best_arch, params, tr_loader, va_loader, device, epochs=epochs, patience=cfg.patience)
                         fold_acc.append(acc)
-                    results.append({"arch":best_arch,"params":{"lr":lr,"batch":batch,"dropout":dropout,"epochs":epochs},"mean_val_acc":float(np.mean(fold_acc))})
+                    results.append({"arch":best_arch,"params":{"lr":lr,"batch":batch,"dropout":dropout,"epochs":epochs},"mean_val_acc":float(np.mean(fold_acc)), "std_val_acc":float(np.std(fold_acc)), "folds": [float(a) for a in fold_acc]})
                     print(f"[GRID] {best_arch} {results[-1]['params']} -> {results[-1]['mean_val_acc']:.4f}")
     best = max(results, key=lambda r: r["mean_val_acc"])
     json.dump(results, open(PATHS.MODELS/"grid_cv_results.json","w"), indent=2)
