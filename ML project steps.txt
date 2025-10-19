@@ -1,0 +1,92 @@
+env setup:
+ 	uv sync
+ 	source .venv/Scripts/activate
+ 	uv run python -c "import sys; print(sys.executable)"
+ 	python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+Usa il dataset Rock-Paper-Scissors (Kaggle) copiandolo in: data/data_rps
+
+split dataset in train, val, test (split (stratificati per classe))
+	python -m rps_classification.dataset --src data/data_rps/rps-cv-images --out data/processed --val 0.15 --test 0.15 --seed 42
+------------------------------------------------------------------------------------------------------------------------------------
+
+(
+note: dentro a fit_once il drop_out è 0.3 quindi uso sempre quello anche se nelle classi c'è un default
+cfg = Settings(epochs=args.epochs, batch=args.batch, lr=args.lr) prendo da args 
+)
+
+Baseline (modello small) — training rapido
+python -m rps_classification.modeling.train --exp baseline_small --model_id small --epochs 10 --batch 64 --lr 1e-3 
+start: 21.05 end: 21.07 - [BASELINE TEST]baseline_small {'loss': 0.8066987494929583, 'acc': 0.6170212765957447}
+
+Baseline (modello small) — training rapido
+python -m rps_classification.modeling.train --exp baseline_medium --model_id medium --epochs 10 --batch 64 --lr 1e-3 
+start: 21.09 end: 21.12 - [BASELINE TEST]baseline_medium {'loss': 0.16535216859771126, 'acc': 0.9483282674772037}
+
+Baseline (modello small) — training rapido
+python -m rps_classification.modeling.train --exp baseline_large --model_id large --epochs 10 --batch 64 --lr 1e-3 
+start: 21.13 - 21.15 - [BASELINE TEST]baseline_large {'loss': 0.027862255096344962, 'acc': 0.9908814589665653}
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+print plots for baseline (run also later for cm & classification report oppure fare tutto alla fine)
+python -m rps_classification.plots
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+Mini 3 fold CV per confrontare architettura, non statistically sound but time constraints
+python -m rps_classification.modeling.train --do_arch_cv True --k 3 --epochs 8 --lr 1e-3 --batch 64
+
+[ARCH CV] small: mean=0.6315
+[ARCH CV] medium: mean=0.7908
+[ARCH CV] large: mean=0.9736
+[BEST ARCH] {'model_id': 'large', 'mean_val_acc': 0.973645491340525, 'std_val_acc': 0.0053086249340684784, 'folds': [0.9725806451612903, 0.967741935483871, 0.9806138933764136]}
+
+------------------------------------------------------------------------------------------------------------------------------------
+Hyperparameter CV
+
+python -m rps_classification.modeling.train --do_grid_cv True --k 5 --arch medium --grid "lr=2e-3,5e-4 batch=64 dropout=0.1,0.5 epochs=12"
+
+[GRID CV] Taking as arg architecture: medium
+[GRID CV] Using architecture: medium
+
+[GRID] medium {'lr': 0.002, 'batch': 64, 'dropout': 0.1, 'epochs': 12} -> 0.9591
+
+[GRID] medium {'lr': 0.002, 'batch': 64, 'dropout': 0.5, 'epochs': 12} -> 0.9554
+
+[GRID] medium {'lr': 0.0005, 'batch': 64, 'dropout': 0.1, 'epochs': 12} -> 0.8993
+
+[GRID] medium {'lr': 0.0005, 'batch': 64, 'dropout': 0.5, 'epochs': 12} -> 0.7919
+
+[BEST PARAMS] medium {'arch': 'medium', 'params': {'lr': 0.002, 'batch': 64, 'dropout': 0.1, 'epochs': 12}, 'mean_val_acc': 0.95913253919949, 'std_val_acc': 0.014847142526030614, 'folds': [0.956989247311828, 0.9489247311827957, 0.9435483870967742, 0.9596774193548387, 0.9865229110512129]}
+
+------------------------------------------------------------------------------------------------------------------------------------
+ 
+Retrain best model from Hyperparameter CV 
+(note: non posso plottare le curve train, val perché il train è fatto su tutto il train+val set)
+
+python -m rps_classification.modeling.train --final_eval True --arch medium
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+Grafici per il report
+python -m rps_classification.plots
+
+------------------------------------------------------------------------------------------------------------------------------------
+
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 580.88                 Driver Version: 580.88         CUDA Version: 13.0     |
++-----------------------------------------+------------------------+----------------------+
+| GPU  Name                  Driver-Model | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce GTX 1660 ...  WDDM  |   00000000:0A:00.0  On |                  N/A |
+| 39%   45C    P8             14W /  125W |    1038MiB /   6144MiB |      3%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
+
+
