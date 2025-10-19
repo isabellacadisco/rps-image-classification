@@ -196,11 +196,13 @@ def arch_cv(k, cfg: Settings):
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
     X = np.concatenate([X_tr, X_va]); y = np.concatenate([y_tr, y_va])
 
+    # SKF garantisce che la proporzione delle classi sia il più possibile simile tra tutti i fold
     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     results = []
     for model_id in ["small","medium","large"]:
         fold_acc = []
+        # Stratified K-Fold CV
         for tr_idx, va_idx in skf.split(X,y):
             tr_loader = _make_loader_from_lists(X[tr_idx], y[tr_idx], cfg.batch, cfg.img_size, True, cfg.num_workers, cfg.pin_memory)
             va_loader = _make_loader_from_lists(X[va_idx], y[va_idx], cfg.batch, cfg.img_size, False, cfg.num_workers, cfg.pin_memory)
@@ -231,6 +233,7 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
     X = np.concatenate([X_tr, X_va]); y = np.concatenate([y_tr, y_va])
 
+    # SKF garantisce che la proporzione delle classi sia il più possibile simile tra tutti i fold
     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     results = []
@@ -239,6 +242,7 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
             for dropout in grid["dropout"]:  #TODO: rendere generico e dinamico 
                 for epochs in grid.get("epochs",[cfg.epochs]): #TODO: rendere generico e dinamico
                     fold_acc = []
+                    # Stratified K-Fold CV
                     for tr_idx, va_idx in skf.split(X,y):
                         tr_loader = _make_loader_from_lists(X[tr_idx], y[tr_idx], batch, cfg.img_size, True, cfg.num_workers, cfg.pin_memory)
                         va_loader = _make_loader_from_lists(X[va_idx], y[va_idx], batch, cfg.img_size, False, cfg.num_workers, cfg.pin_memory)
