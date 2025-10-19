@@ -31,6 +31,7 @@ dependencies = [
     "torch==2.5.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
     "torchvision==0.20.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
     "torchaudio==2.5.1+cu121; sys_platform == 'win32' or sys_platform == 'linux'",
+    "matplotlib>=3.10.7",
 ]
 requires-python = ">3.11.0"
 
