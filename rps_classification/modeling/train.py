@@ -10,7 +10,7 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import classification_report, confusion_matrix
 from torchvision import datasets
 from ..config import PATHS, Settings
-from ..features import build_transforms, make_loaders, ListDataset
+from ..data_utils import build_transforms, make_loaders, ListDataset
 import pandas as pd, json as js, torch.nn as nn
 
 import random, numpy as np, torch

@@ -1,9 +1,5 @@
 # RPS-classification
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
-    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
-</a>
-
 CNN for Rock-Paper-Scissors Classification
 
 This repo trains a CNN to classify Rock / Paper / Scissors hand gestures.
@@ -66,7 +62,7 @@ Convolutional Neural Networks per classificare **rock / paper / scissors** con m
     │
     ├── dataset.py              <- Scripts to download or generate data
     │
-    ├── features.py             <- Code to create features for modeling
+    ├── data_utils.py             <- Code to create load and transform data
     │
     ├── modeling                
     │   ├── __init__.py 
