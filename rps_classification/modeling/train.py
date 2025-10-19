@@ -193,10 +193,15 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
     # best_arch è il model_id della migliore architettura trovata in arch_cv
     # siccome la migliore architettura potrebbe essere "large" che richiede più memoria,
     # rendo possibile specificare manualmente il model_id da usare per il grid search
+
+    print("[GRID CV] Taking as arg architecture:", arch)
+
     if arch is None:
         best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
     else:
         best_arch = arch
+
+    print(f"[GRID CV] Using architecture: {best_arch}")
 
     X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
@@ -310,9 +315,10 @@ if __name__ == "__main__":
         arch_cv(args.k, cfg)
     elif args.do_grid_cv:
         grid = parse_grid(args.grid) if args.grid else {"lr":[1e-3,3e-4], "batch":[32,64], "dropout":[0.2,0.4], "epochs":[12]}
-        grid_cv(args.k, grid, cfg)
+        grid_cv(args.k, grid, cfg, arch=args.arch)
+
     elif args.final_eval:
-        retrain_and_eval(cfg, exp_name="final_best")
+        retrain_and_eval(cfg, exp_name="final_best", arch=args.arch)
     else:
         # semplice train su train/val e test a fine (per baseline rapida)
         device = "cuda" if torch.cuda.is_available() else "cpu"
