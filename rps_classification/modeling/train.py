@@ -112,8 +112,6 @@ def build_model(model_id, num_classes, dropout):
     if model_id=="small":  return SmallCNN(num_classes, dropout)
     if model_id=="medium": return MediumCNN(num_classes, dropout)
     if model_id=="large":  return LargeCNN(num_classes, dropout)
-    
-    if model_id=="tiny":  return TinyCNN(num_classes, dropout)
 
     raise ValueError(f"Unknown model_id: {model_id}")
 
@@ -319,7 +317,7 @@ def parse_grid(grid_str: str):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--exp", type=str, default="baseline_small")
-    ap.add_argument("--model_id", type=str, choices=["small","medium","large", "tiny"], default="small")
+    ap.add_argument("--model_id", type=str, choices=["small","medium","large"], default="small")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--lr", type=float, default=1e-3)
