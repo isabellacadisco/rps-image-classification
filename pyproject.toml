@@ -19,7 +19,7 @@ dependencies = [
     "ipykernel>=7.0.1",
     "loguru",
     "mkdocs",
-    #"pandas>=2.3.3",
+    "pandas>=2.3.3",
     "pip",
     "pytest",
     "python-dotenv",
