@@ -22,8 +22,6 @@ Convolutional Neural Networks per classificare **rock / paper / scissors** con m
 - Pipeline immagini con **resize lato corto + CenterCrop** (facile da cambiare)
 
 ## Struttura progetto
-```
-## Project Organization
 
 ```
 ├── LICENSE            <- Open-source license if one is chosen
