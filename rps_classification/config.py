@@ -19,7 +19,7 @@ class Settings:
     lr: float = 1e-3
     batch: int = 64
     epochs: int = 20
-    patience: int = 5
+    patience: int = 2 # early stopping patience 2 perché abbiamo poche epoche totali
     num_workers: int = 2
     pin_memory: bool = True
 
