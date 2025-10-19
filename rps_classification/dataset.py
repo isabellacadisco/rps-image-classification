@@ -1,4 +1,4 @@
-import argparse, csv, shutil, uuid
+import argparse, csv, shutil, uuid, os
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 from .config import PATHS, Settings
@@ -29,11 +29,21 @@ def make_split(src: Path, out: Path, val: float, test: float, seed: int):
             (out / split / cls).mkdir(parents=True, exist_ok=True)
             for p in arr:
                 dst = out / split / cls / p.name
-                if dst.exists():  # evita overwrite silenziosi
+                if dst.exists(): 
                     stem, suf = dst.stem, dst.suffix
                     dst = dst.with_name(f"{stem}__{uuid.uuid4().hex[:8]}{suf}")
                 shutil.copy2(p, dst)
-                rows.append((split, str(dst.relative_to(PATHS.ROOT)), cls))
+
+                # fix percorso relativo per manifest
+                root_abs = PATHS.ROOT.resolve()  # root del progetto
+                dst_abs = dst.resolve()          # percorso assoluto dell'immagine copiata
+                try:
+                    rel = os.path.relpath(dst_abs, root_abs)
+                except ValueError:
+                    # es: drive diverso su Windows -> fallback assoluto
+                    rel = str(dst_abs)
+                rel = rel.replace("\\", "/")  # normalizza separatori per compatibilità
+                rows.append((split, rel, cls))
 
     PATHS.REFS.mkdir(parents=True, exist_ok=True)
     for split in ["train","val","test","all"]:
