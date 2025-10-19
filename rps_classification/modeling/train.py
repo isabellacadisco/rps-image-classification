@@ -39,32 +39,6 @@ class SmallCNN(nn.Module):
         x = self.pool(x)
         return self.classifier(x)
 
-class TinyCNN(nn.Module):
-    def __init__(self, num_classes=3, img_size=192):
-        super().__init__()
-        img_size = int(cfg.img_size)  # Ensure img_size is an integer
-        
-        print("[DEBUG] Initial img_size:", img_size)  # Debugging line
-
-        feature_map_size = img_size // 8  # Calculate the size after 3 MaxPool2d layers
-        if feature_map_size <= 0:
-            raise ValueError(f"Invalid img_size: {img_size}. Ensure img_size is large enough to pass through the network.")
-        print(f"[DEBUG] Feature map size: {feature_map_size}x{feature_map_size}")  # Debugging line
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2), # 64x64
-            nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),# 32x32
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2) # 16x16
-        )
-        self.classifier = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64 * feature_map_size * feature_map_size, 128), nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, num_classes)
-        )
-    def forward(self, x):
-        x = self.features(x)
-        return self.classifier(x)
-
 class MediumCNN(nn.Module):
     def __init__(self, num_classes=3, dropout=0.3):
         super().__init__()
