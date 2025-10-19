@@ -213,13 +213,20 @@ def arch_cv(k, cfg: Settings):
     json.dump(best, open(PATHS.MODELS/"best_arch.json","w"), indent=2)
     print("[BEST ARCH]", best)
 
-def grid_cv(k, grid, cfg: Settings):
+def grid_cv(k, grid, cfg: Settings, arch=None):
     set_seeds(cfg.seed)
 
     # sovrascrivo num workers a 0 #TODO: provare altra soluzione con PathDataset
     cfg.num_workers = 0
 
-    best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
+    # best_arch è il model_id della migliore architettura trovata in arch_cv
+    # siccome la migliore architettura potrebbe essere "large" che richiede più memoria,
+    # rendo possibile specificare manualmente il model_id da usare per il grid search
+    if arch is None:
+        best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
+    else:
+        best_arch = arch
+
     X_tr, y_tr, _ = _list_paths_labels(PATHS.DATA_PROC / "train")
     X_va, y_va, _ = _list_paths_labels(PATHS.DATA_PROC / "val")
     X = np.concatenate([X_tr, X_va]); y = np.concatenate([y_tr, y_va])
@@ -242,7 +249,7 @@ def grid_cv(k, grid, cfg: Settings):
                     print(f"[GRID] {best_arch} {results[-1]['params']} -> {results[-1]['mean_val_acc']:.4f}")
     best = max(results, key=lambda r: r["mean_val_acc"])
     json.dump(results, open(PATHS.MODELS/"grid_cv_results.json","w"), indent=2)
-    json.dump(best, open(PATHS.MODELS/"best_params.json","w"), indent=2)
+    json.dump(best, open(PATHS.MODELS/f"best_params_{arch}.json","w"), indent=2)
     print("[BEST PARAMS]", best)
 
 def retrain_and_eval(cfg: Settings, exp_name="final"):
@@ -315,6 +322,8 @@ if __name__ == "__main__":
     ap.add_argument("--grid", type=str, default="")
     ap.add_argument("--final_eval", type=bool, default=False)
     ap.add_argument("--dropout", type=float, default=0.3)
+    ap.add_argument("--arch", type=str, default=None)
+
     args = ap.parse_args()
 
     cfg = Settings(epochs=args.epochs, batch=args.batch, lr=args.lr)
