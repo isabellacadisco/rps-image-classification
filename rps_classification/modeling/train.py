@@ -234,13 +234,17 @@ def retrain_and_eval(cfg: Settings, exp_name="final", arch=None):
     set_seeds(cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    print("[GRID CV] Taking as arg architecture:", arch)
+
     if arch is None:
         best_arch = json.load(open(PATHS.MODELS/"best_arch.json"))["model_id"]
         best_params = json.load(open(PATHS.MODELS/"best_params.json"))["params"]
     else:
         best_arch = arch
         best_params = json.load(open(PATHS.MODELS/f"best_params_{arch}.json"))["params"]
-  
+    
+    print(f"[GRID CV] Using architecture: {best_arch}")
+
     # loader standard (augment su train)
     train_loader, val_loader, test_loader = make_loaders(cfg)
     # unisci train+val
