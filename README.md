@@ -97,6 +97,9 @@ uv sync
 source .venv/Scripts/activate
 uv run python -c "import sys; print(sys.executable)"
 
+### to check if torch version correct
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+
 per disattivarlo:
 deactivate
 rm -rf .venv
