@@ -326,4 +326,4 @@ if __name__ == "__main__":
         pd.DataFrame(hist).to_csv(out/"training_log.csv", index=False)
         loss, acc = one_epoch(model, test_loader, nn.CrossEntropyLoss(), None, device)
         js.dump({"test_loss":loss, "test_acc":acc}, open(out/"test_metrics.json","w"), indent=2)
-        print("[BASELINE TEST]", {"loss":loss, "acc":acc})
+        print(f"[BASELINE TEST]{args.exp}", {"loss":loss, "acc":acc})
