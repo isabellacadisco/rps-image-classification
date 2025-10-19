@@ -234,10 +234,10 @@ def grid_cv(k, grid, cfg: Settings, arch=None):
     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=cfg.seed)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     results = []
-    for lr in grid["lr"]:
-        for batch in grid["batch"]:
-            for dropout in grid["dropout"]:
-                for epochs in grid.get("epochs",[cfg.epochs]):
+    for lr in grid["lr"]: #TODO: rendere generico e dinamico 
+        for batch in grid["batch"]:  #TODO: rendere generico e dinamico
+            for dropout in grid["dropout"]:  #TODO: rendere generico e dinamico 
+                for epochs in grid.get("epochs",[cfg.epochs]): #TODO: rendere generico e dinamico
                     fold_acc = []
                     for tr_idx, va_idx in skf.split(X,y):
                         tr_loader = _make_loader_from_lists(X[tr_idx], y[tr_idx], batch, cfg.img_size, True, cfg.num_workers, cfg.pin_memory)
