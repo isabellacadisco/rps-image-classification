@@ -1,11 +1,9 @@
 # Image Classification (PyTorch) — Rock–Paper–Scissors
 
 PyTorch project for classifying Rock–Paper–Scissors hand gesture images using Convolutional Neural Networks (CNNs). Includes data preprocessing, model training, evaluation, and hyperparameter tuning.
-
 <p align="center">
-  <img src="notebooks/figures/raw_imgs_viz.png" width="600">
+  <img src="notebooks/figures/raw_imgs_viz.png" width="700">
 </p>
-
 
 ## Project structure
 
