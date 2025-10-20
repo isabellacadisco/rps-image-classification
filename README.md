@@ -1,56 +1,32 @@
-# RPS-classification
+# Image Classification (PyTorch) — Rock–Paper–Scissors
 
-CNN for Rock-Paper-Scissors Classification
+PyTorch project for classifying Rock–Paper–Scissors hand gesture images using Convolutional Neural Networks (CNNs). Includes data preprocessing, model training, evaluation, and hyperparameter tuning.
 
-This repo trains a CNN to classify Rock / Paper / Scissors hand gestures.
-
-Expected dataset layout
-    ./data/raw/RPS/
-    paper/*.jpg
-    rock/*.jpg
-    scissors/*.jpg
-
-uv pip install -r requirements.lock.txt
-
-# RPS Classification (PyTorch) — Rock–Paper–Scissors
-
-Convolutional Neural Networks per classificare **rock / paper / scissors** con metodologia rigorosa:
-- **Nessun leakage** del test set
-- **Selezione architettura** con mini **k-fold CV**
-- **Tuning iperparametri** con **k-fold CV** automatizzato
-- **Retrain finale** su train+val, **valutazione una sola volta** su test (blind)
-- Pipeline immagini con **resize lato corto + CenterCrop** (facile da cambiare)
-
-## Struttura progetto
+## Project structure
 
 ```
 ├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
 ├── README.md          <- The top-level README for developers using this project.
 ├── data
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
+│   ├── processed      <- The final, canonical data set split for modeling.
+│   └── data_rps       <- The original, immutable data dump.
 │
 ├── docs               <- A default mkdocs project; see www.mkdocs.org for details
 │
 ├── models             <- Trained and serialized models, model predictions, or model summaries
 │
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
+├── notebooks          <- Jupyter notebooks: `data-exploration`.
 │
 ├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         rps_classification and configuration for tools like black
+│                         rps_classification
 │
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+├── references         <- Explanatory materials.
 │
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
+├── reports            
 │   └── figures        <- Generated graphics and figures to be used in reporting
 │
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
+├── requirements.txt   <- The requirements file for reproducing the analysis environment, 
 │                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
 │
 └── rps_classification   <- Source code for use in this project.
     │
@@ -58,39 +34,30 @@ Convolutional Neural Networks per classificare **rock / paper / scissors** con m
     │
     ├── config.py               <- Store useful variables and configuration
     │
-    ├── dataset.py              <- Scripts to download or generate data
+    ├── dataset.py              <- Scripts to generate train, val, test split from raw data
     │
     ├── data_utils.py             <- Code to create load and transform data
     │
     ├── modeling                
     │   ├── __init__.py 
     │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
+    │   └── train.py            <- Code to train and evaluate models
     │
     └── plots.py                <- Code to create visualizations
 ```
 
 
-## Requisiti & setup ambiente
-```bash
-# Attiva il tuo venv (esempi)
-# Windows (Git Bash):
-source .venv/Scripts/activate
-# Linux/Mac:
-# source .venv/bin/activate
-
-pip install -r requirements.txt
-# (Opzionale GPU) Installa PyTorch con CUDA seguendo le istruzioni ufficiali per la tua GPU/driver.
-```
-
 ## Dataset
+Download the Rock-Paper-Scissors dataset from Kaggle: https://www.kaggle.com/datasets/drgfreeman/rockpaperscissors.
 
-Usa il dataset Rock-Paper-Scissors (Kaggle) copiandolo in:
-data/data_rps/{rock,paper,scissors}
-Le immagini originali sono circa 300×200 (RGB). La pipeline di default preserva l’aspect ratio con Resize(int) e poi fa CenterCrop a 192×192.
+Copy it into: `data/data_rps`.
 
 
-## how to use uv venv
+## Requirements & Environment Setup
+
+This project uses uv as the package and environment manager for Python. The following steps are required to correctly set up a working environment and run the project locally.
+
+```bash
 uv sync
 source .venv/Scripts/activate
 uv run python -c "import sys; print(sys.executable)"
@@ -101,3 +68,18 @@ python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
 per disattivarlo:
 deactivate
 rm -rf .venv
+```
+The project was developed and executed locally with GPU acceleration on the following configuration:
+
+| Component        | Specification                 |
+| ---------------- | ----------------------------- |
+| Operating System | Windows 10                    |
+| Python Version   | 3.12                          |
+| PyTorch Version  | 2.5.1+cu121 (CUDA 12.1)       |
+| CUDA Version     | 13.0 (driver level support)   |
+| GPU              | NVIDIA GeForce GTX 1660 (6GB) |
+| NVIDIA Driver    | 580.88                        |
+
+> ### Note on Hardware Performance
+> The experiments for this project were executed locally on a consumer GPU (**NVIDIA GeForce GTX 1660**). This GPU belongs to a comparable performance class to the **NVIDIA T4**.
+> Therefore, the results of this project should be **reproducible on a Google Colab T4 runtime or similar CUDA-enabled environment** with minimal differences in training time.
