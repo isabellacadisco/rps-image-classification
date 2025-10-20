@@ -8,7 +8,7 @@ PyTorch project for classifying Rock–Paper–Scissors hand gesture images usin
 ## Project structure
 
 ```
-├── LICENSE            <- Open-source license if one is chosen
+├── LICENSE           
 ├── README.md          <- The top-level README for developers using this project.
 ├── data
 │   ├── processed      <- The final, canonical data set split for modeling.
