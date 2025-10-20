@@ -4,7 +4,7 @@ from pathlib import Path
 @dataclass(frozen=True)
 class Paths:
     ROOT: Path = Path(__file__).resolve().parents[1]
-    DATA_RAW: Path = ROOT / "data" / "raw"      # dati copiati da data/data_rps
+    DATA_RAW: Path = ROOT / "data" / "data_rps" / "rps-cv-images"     # dati copiati da data/data_rps
     DATA_PROC: Path = ROOT / "data" / "processed"    # train, val, test split 
     REFS: Path = ROOT / "references" / "splits"
     MODELS: Path = ROOT / "models"
